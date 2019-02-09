@@ -30,6 +30,12 @@ config SND_SOC_GENERIC_DMAENGINE_PCM
 	bool
 	select SND_DMAENGINE_PCM
 
+config RECEIVER_EXT_PA
+    default n
+    bool "Receiver external PA"
+    help
+        Support for external PA.
+
 # All the supported SoCs
 source "sound/soc/adi/Kconfig"
 source "sound/soc/atmel/Kconfig"
