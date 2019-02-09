@@ -13,6 +13,41 @@
 #include <linux/notifier.h>
 #include "internal.h"
 
+#ifdef CONFIG_KERNEL_CUSTOM_P3592
+#include <linux/proc_fs.h>
+static char boot_info[50];
+static struct proc_dir_entry *boot_info_proc = NULL;
+
+static int __init android_boot_info(char *opt)
+{
+	if ( !opt || !*opt)
+		return 1;
+
+	strcpy(boot_info, opt);
+
+	return 1;
+}
+__setup("androidboot.info=",android_boot_info);
+
+static ssize_t boot_info_read_proc(struct file *file, char __user *page, size_t size, loff_t *ppos)
+{
+	char *ptr = page;
+
+	if (*ppos)
+		return 0;
+
+	ptr += sprintf(ptr, "%s\n", boot_info);
+	*ppos += ptr - page;
+
+	return (ptr - page);
+}
+
+static const struct file_operations boot_info_proc_ops = {
+	.owner = THIS_MODULE,
+	.read = boot_info_read_proc,
+};
+#endif
+
 #ifdef CONFIG_DEBUG_MEMORY_INIT
 int mminit_loglevel;
 
@@ -199,6 +234,12 @@ static int __init mm_sysfs_init(void)
 	mm_kobj = kobject_create_and_add("mm", kernel_kobj);
 	if (!mm_kobj)
 		return -ENOMEM;
+
+#ifdef CONFIG_KERNEL_CUSTOM_P3592
+	boot_info_proc = proc_create("boot_info", 0444, NULL, &boot_info_proc_ops);
+	if (boot_info_proc == NULL)
+		pr_err("create /proc/boot_info failed\n");
+#endif
 
 	return 0;
 }
