@@ -136,6 +136,10 @@ void fsg_common_free_buffers(struct fsg_common *common);
 
 int fsg_common_set_cdev(struct fsg_common *common,
 			struct usb_composite_dev *cdev, bool can_stall);
+			
+#ifdef CONFIG_ONLY_BICR_SUPPORT
+int fsg_common_set_bicr(struct fsg_common *common, bool bicr);
+#endif
 
 void fsg_common_remove_lun(struct fsg_lun *lun, bool sysfs);
 
