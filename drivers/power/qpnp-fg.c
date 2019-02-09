@@ -1962,12 +1962,12 @@ static void fg_handle_battery_insertion(struct fg_chip *chip)
 	schedule_delayed_work(&chip->update_sram_data, msecs_to_jiffies(0));
 }
 
-
+#if 0
 static int soc_to_setpoint(int soc)
 {
 	return DIV_ROUND_CLOSEST(soc * 255, 100);
 }
-
+#endif
 static void batt_to_setpoint_adc(int vbatt_mv, u8 *data)
 {
 	int val;
@@ -4528,7 +4528,7 @@ static int fg_power_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		val->intval = chip->nom_cap_uah;
-		break;
+    	break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		val->intval = chip->learning_data.learned_cc_uah;
 		break;
@@ -6198,6 +6198,56 @@ fail:
 	return -EINVAL;
 }
 
+
+/*************add by longcheer_liml_2017_03_07 ********/
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+#define REDO_BATID_DURING_FIRST_EST BIT(4)
+static void fg_hw_restart(struct fg_chip *chip) 
+{ 
+	u8 reg; 
+	int batt_id; 
+	u8 data[4]; 
+	int rc =0;
+ 
+	reg = 0x80; 
+	batt_id = get_sram_prop_now(chip, FG_DATA_BATT_ID); 
+	printk("xyy 1 battery id = %d\n",batt_id); 
+	if(batt_id > 80000) //bat_id[20k,56k]
+	{    	
+	    fg_masked_write(chip, 0x4150,reg, reg, 1); // set 0x80 to 0x4150 
+     
+	    fg_masked_write(chip, chip->soc_base + SOC_RESTART,0xFF, 0, 1); //clear 0x4051 
+	    mdelay(5); 
+     
+	    reg = REDO_BATID_DURING_FIRST_EST|REDO_FIRST_ESTIMATE; 
+	    fg_masked_write(chip, chip->soc_base + SOC_RESTART,reg, reg, 1); //set 0x18 to 0x4051 
+	    mdelay(5); 
+     
+	    reg = REDO_BATID_DURING_FIRST_EST |REDO_FIRST_ESTIMATE| RESTART_GO; 
+	    fg_masked_write(chip, chip->soc_base + SOC_RESTART,reg, reg, 1); //set 0x19 to 0x4051 
+	    mdelay(1000); 
+     
+	    fg_masked_write(chip, chip->soc_base + SOC_RESTART,0xFF, 0, 1); //clear 0x4051 
+	    fg_masked_write(chip, 0x4150,0x80, 0, 1); // clear 0x4150 
+	
+	    mdelay(2000); 
+	    //chip->fg_restarting = true;  //close by longcheer_liml_2017_04_01 for read battery type error
+     
+	    rc = fg_mem_read(chip, data, fg_data[FG_DATA_BATT_ID].address, 
+	    fg_data[FG_DATA_BATT_ID].len, fg_data[FG_DATA_BATT_ID].offset, 0); 
+	    if (rc) { 
+	    printk("xyy Failed to get sram battery id data\n"); 
+	    } else { 
+	    fg_data[FG_DATA_BATT_ID].value = data[0] * LSB_8B; 
+	    } 
+	
+	    batt_id = get_sram_prop_now(chip, FG_DATA_BATT_ID); 
+	    printk("xyy 2 battery id = %d\n",batt_id);
+	}
+ 
+} 
+#endif
+
 #define FG_PROFILE_LEN			128
 #define PROFILE_COMPARE_LEN		32
 #define THERMAL_COEFF_ADDR		0x444
@@ -6212,6 +6262,11 @@ static int fg_batt_profile_init(struct fg_chip *chip)
 	const char *data, *batt_type_str;
 	bool tried_again = false, vbat_in_range, profiles_same;
 	u8 reg = 0;
+	
+
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+	fg_hw_restart(chip); 
+#endif
 
 wait:
 	fg_stay_awake(&chip->profile_wakeup_source);
@@ -7900,6 +7955,7 @@ static int fg_common_hw_init(struct fg_chip *chip)
 	int rc;
 	int resume_soc_raw;
 	u8 val;
+	u16 address_soc_delta;
 
 	update_iterm(chip);
 	update_cutoff_voltage(chip);
@@ -7927,8 +7983,14 @@ static int fg_common_hw_init(struct fg_chip *chip)
 		}
 	}
 
-	rc = fg_mem_masked_write(chip, settings[FG_MEM_DELTA_SOC].address, 0xFF,
-			soc_to_setpoint(settings[FG_MEM_DELTA_SOC].value),
+	address_soc_delta = settings[FG_MEM_DELTA_SOC].address;
+	if (settings[FG_MEM_DELTA_SOC].value < 3)
+		rc = fg_mem_masked_write(chip, address_soc_delta, 0xFF,
+			1,
+			settings[FG_MEM_DELTA_SOC].offset);
+	else
+		rc = fg_mem_masked_write(chip, address_soc_delta, 0xFF,
+			settings[FG_MEM_DELTA_SOC].value,
 			settings[FG_MEM_DELTA_SOC].offset);
 	if (rc) {
 		pr_err("failed to write delta soc rc=%d\n", rc);
@@ -8150,7 +8212,7 @@ static int fg_8950_hw_init(struct fg_chip *chip)
 static int fg_hw_init(struct fg_chip *chip)
 {
 	int rc = 0;
-
+	
 	rc = fg_common_hw_init(chip);
 	if (rc) {
 		pr_err("Unable to initialize FG HW rc=%d\n", rc);
