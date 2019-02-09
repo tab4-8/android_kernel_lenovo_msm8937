@@ -81,3 +81,7 @@ obj-$(CONFIG_MSM_BCL_CTL)	+= msm_bcl.o
 obj-$(CONFIG_MSM_BCL_PERIPHERAL_CTL) += bcl_peripheral.o
 obj-$(CONFIG_POWER_RESET)	+= reset/
 obj-$(CONFIG_ARCH_MSM)		+= qcom/
+
+#add by longcheer_liml_2017_02-23 for add PD feature
+obj-$(CONFIG_TUSB422)	+= tusb422/
+obj-$(CONFIG_USB_FUSB302)	+= fusb302/
