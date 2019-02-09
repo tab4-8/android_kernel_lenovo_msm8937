@@ -30,6 +30,9 @@
 #include "msm-audio-pinctrl.h"
 #include "../codecs/msm8x16-wcd.h"
 #include "../codecs/wsa881x-analog.h"
+#ifdef CONFIG_HEADSET_EUO_US_SWITCH_P3592
+#include "lct_mic_drv.h"
+#endif
 #include <linux/regulator/consumer.h>
 #define DRV_NAME "msm8952-asoc-wcd"
 
@@ -2671,6 +2674,9 @@ static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 		return false;
 	}
 	gpio_set_value_cansleep(pdata->us_euro_gpio, !value);
+#ifdef CONFIG_HEADSET_EUO_US_SWITCH_P3592
+	lct_mic_set(!value);
+#endif
 	pr_debug("%s: swap select switch %d to %d\n", __func__, value, !value);
 
 	ret = msm_gpioset_suspend(CLIENT_WCD_INT, "us_eu_gpio");
