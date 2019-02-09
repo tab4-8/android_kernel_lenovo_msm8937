@@ -55,6 +55,9 @@
 #define ANC_DETECT_RETRY_CNT 7
 #define WCD_MBHC_SPL_HS_CNT  1
 
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+static int pa_on_flag = 0;
+#endif
 static int det_extn_cable_en;
 module_param(det_extn_cable_en, int,
 		S_IRUGO | S_IWUSR | S_IWGRP);
@@ -715,6 +718,9 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 				    (mbhc->hph_status | SND_JACK_MECHANICAL),
 				    WCD_MBHC_JACK_MASK);
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+		if (!pa_on_flag)
+#endif
 		wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
 	}
 	pr_debug("%s: leave hph_status %x\n", __func__, mbhc->hph_status);
@@ -1196,6 +1202,17 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 			plug_type = MBHC_PLUG_TYPE_INVALID;
 	}
 
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+	if (mbhc->mbhc_cb->hph_pa_on_status) {
+		pa_on_flag = mbhc->mbhc_cb->hph_pa_on_status(codec);
+		if (pa_on_flag) {
+			gpio_set_value_cansleep(6, false);
+			gpio_set_value_cansleep(134, false);
+			wcd_mbhc_set_and_turnoff_hph_padac(mbhc);
+		}
+	}
+#endif
+
 	do {
 		cross_conn = wcd_check_cross_conn(mbhc);
 		try++;
@@ -1239,6 +1256,13 @@ correct_plug_type:
 							mbhc->codec);
 				mbhc->micbias_enable = false;
 			}
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+			if (pa_on_flag) {
+				wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
+				gpio_set_value_cansleep(6, true);
+				gpio_set_value_cansleep(134, true);
+			}
+#endif
 			goto exit;
 		}
 		if (mbhc->btn_press_intr) {
@@ -1265,6 +1289,13 @@ correct_plug_type:
 							mbhc->codec);
 				mbhc->micbias_enable = false;
 			}
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+			if (pa_on_flag) {
+				wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
+				gpio_set_value_cansleep(6, true);
+				gpio_set_value_cansleep(134, true);
+			}
+#endif
 			goto exit;
 		}
 		WCD_MBHC_REG_READ(WCD_MBHC_HS_COMP_RESULT, hs_comp_res);
