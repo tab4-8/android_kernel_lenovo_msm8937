@@ -349,7 +349,9 @@ struct device_node *of_batterydata_get_best_profile(
 			return ERR_PTR(-ENXIO);
 		}
 	}
-
+#if defined(CONFIG_KERNEL_CUSTOM_P3592_DEBUG) //add by longcheer_liml_2016_12_15_for open bat_id_kohm_log
+    printk("~~liml batt_id_kohm = ret.intval / 1000 = %d\n",batt_id_kohm);
+#endif
 	/*
 	 * Find the battery data with a battery id resistor closest to this one
 	 */
@@ -372,6 +374,14 @@ struct device_node *of_batterydata_get_best_profile(
 				delta = abs(batt_ids.kohm[i] - batt_id_kohm);
 				limit = (batt_ids.kohm[i] * id_range_pct) / 100;
 				in_range = (delta <= limit);
+				#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+				pr_err("batt_ids.kohm[%d]=%d, batt_id_k = %d\n",
+					i, batt_ids.kohm[i], batt_id_kohm);
+				#endif
+				#if defined(CONFIG_KERNEL_CUSTOM_P3592_DEBUG)//add by longcheer_liml_2016_12_15_for open bat_id_kohm_log
+				printk("~~liml batt_ids.kohm[%d]=%d, batt_id_k = %d\n",
+					i, batt_ids.kohm[i], batt_id_kohm);
+				#endif
 				/*
 				 * Check if the delta is the lowest one
 				 * and also if the limits are in range
