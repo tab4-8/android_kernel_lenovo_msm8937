@@ -2775,6 +2775,9 @@ struct mass_storage_function_config {
 	struct usb_function *f_ms;
 	struct usb_function_instance *f_ms_inst;
 	char inquiry_string[INQUIRY_MAX_LEN];
+#ifdef CONFIG_ONLY_BICR_SUPPORT
+	int bicr;
+#endif
 };
 
 #ifdef CONFIG_USB_GADGET_DEBUG_FILES
@@ -2807,6 +2810,17 @@ static int mass_storage_function_init(struct android_usb_function *f,
 	}
 
 	fsg_mod_data.removable[0] = true;
+#ifdef	CONFIG_ONLY_BICR_SUPPORT
+	fsg_mod_data.ro[0] = true;
+	fsg_mod_data.cdrom[0] = true;
+	fsg_mod_data.nofua[0] = true;
+	fsg_mod_data.removable[1] = true;
+	fsg_mod_data.ro[1] = false;
+	fsg_mod_data.cdrom[1] = false;
+	fsg_mod_data.nofua[1] = true;
+	fsg_mod_data.luns = 2;
+	fsg_mod_data.stall = true;
+#endif
 	fsg_config_from_params(&m_config, &fsg_mod_data, fsg_num_buffers);
 	fsg_opts = fsg_opts_from_func_inst(config->f_ms_inst);
 	ret = fsg_common_set_num_buffers(fsg_opts->common, fsg_num_buffers);
@@ -2942,8 +2956,55 @@ static DEVICE_ATTR(inquiry_string, S_IRUGO | S_IWUSR,
 					mass_storage_inquiry_show,
 					mass_storage_inquiry_store);
 
+#ifdef CONFIG_ONLY_BICR_SUPPORT
+static ssize_t mass_storage_bicr_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+	return sprintf(buf, "%d\n", config->bicr);
+}
+
+static ssize_t mass_storage_bicr_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+	struct fsg_opts *fsg_opts;
+	
+	if (size >= sizeof(config->bicr))
+		return -EINVAL;
+	if (sscanf(buf, "%d", &config->bicr) != 1)
+		return -EINVAL;
+	pr_info("%s(): Inside\n", __func__);
+	fsg_opts = fsg_opts_from_func_inst(config->f_ms_inst);
+	fsg_common_set_bicr(fsg_opts->common, config->bicr);
+#if 0
+		/* Set Lun[0] is a CDROM when enable bicr.*/
+	if (!strcmp(buf, "1"))
+		fsg_opts->common->luns[0].cdrom = 1;
+	else {		
+		/*Reset the value. Clean the cdrom's parameters*/
+		fsg_opts->common->luns[0].cdrom = 0;
+		fsg_opts->common->luns[0].blkbits = 0;
+		fsg_opts->common->luns[0].blksize = 0;
+		fsg_opts->common->luns[0].num_sectors = 0;
+	}
+#endif
+	return size;
+}
+
+static DEVICE_ATTR(bicr, S_IRUGO | S_IWUSR,
+					mass_storage_bicr_show,
+					mass_storage_bicr_store);
+
+#endif
+
 static struct device_attribute *mass_storage_function_attributes[] = {
 	&dev_attr_inquiry_string,
+#ifdef CONFIG_ONLY_BICR_SUPPORT
+	&dev_attr_bicr,
+#endif
 	NULL
 };
 
