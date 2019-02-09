@@ -372,6 +372,10 @@ struct device_node *of_batterydata_get_best_profile(
 				delta = abs(batt_ids.kohm[i] - batt_id_kohm);
 				limit = (batt_ids.kohm[i] * id_range_pct) / 100;
 				in_range = (delta <= limit);
+				#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+				pr_err("batt_ids.kohm[%d]=%d, batt_id_k = %d\n",
+					i, batt_ids.kohm[i], batt_id_kohm);
+				#endif
 				/*
 				 * Check if the delta is the lowest one
 				 * and also if the limits are in range
