@@ -80,6 +80,9 @@ static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 static int msm8952_wsa_switch_event(struct snd_soc_dapm_widget *w,
 			      struct snd_kcontrol *kcontrol, int event);
 
+#if defined(CONFIG_SPEAKER_EXT_PA)
+int msm8x16_spk_ext_pa_ctrl(struct msm8916_asoc_mach_data *pdatadata, bool value);
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 extern int msm8x16_rec_ext_pa_ctrl(struct msm8916_asoc_mach_data *pdatadata, bool value);
 #endif
@@ -262,11 +265,109 @@ int is_ext_spk_gpio_support(struct platform_device *pdev,
 	return 0;
 }
 
+#if defined(CONFIG_SPEAKER_EXT_PA)
+int msm8x16_spk_ext_pa_ctrl(struct msm8916_asoc_mach_data *pdatadata, bool value)
+{
+	struct msm8916_asoc_mach_data *pdata = pdatadata;
+	bool on_off = value;
+	int ret = 0;
+
+	pr_debug("%s, spk_ext_pa_l_gpio=%d, spk_ext_pa_r_gpio=%d,  on_off=%d\n", 
+		__func__, pdata->spk_ext_pa_l_gpio, pdata->spk_ext_pa_r_gpio, on_off);
+	if (gpio_is_valid(pdata->spk_ext_pa_l_gpio) && gpio_is_valid(pdata->spk_ext_pa_r_gpio)) {
+		if (on_off) {
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+			//Use mode 5 for 3590
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			mdelay(1);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			udelay(2);
+#elif defined(CONFIG_KERNEL_CUSTOM_P3588)
+			//Use AW87317 mode 3 for 3588
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			mdelay(1);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			udelay(2);
+#else
+#if defined(CONFIG_SPEAKER_EXT_PA_AW8738) //Use mode 2 for project P3585
+			pr_debug("At %d In (%s),set pa\n",__LINE__, __FUNCTION__);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			mdelay(1);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+			udelay(2);
+#endif
+#endif
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, true);
+			msleep(50);
+		}
+		else {
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_r_gpio, false);
+		}
+	}
+	else
+	{
+		pr_info("%s, error\n", __func__);
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+#endif
+
 static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 {
 	struct snd_soc_card *card = codec->component.card;
 	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int ret;
+#if defined(CONFIG_SPEAKER_EXT_PA)
+	if (!msm8x16_spk_ext_pa_ctrl(pdata, enable))
+		return 0;
+	else {
+		pr_err("%s: Invalid gpio: %d\n", __func__,pdata->spk_ext_pa_gpio);
+		return false;
+	}
+#endif
 
 	if (!gpio_is_valid(pdata->spk_ext_pa_gpio)) {
 		pr_err("%s: Invalid gpio: %d\n", __func__,
@@ -2720,6 +2821,84 @@ static void msm8952_dt_parse_cap_info(struct platform_device *pdev,
 		 MICBIAS_EXT_BYP_CAP : MICBIAS_NO_EXT_BYP_CAP);
 }
 
+#if defined(CONFIG_SPEAKER_EXT_PA) //xuke @ 20141112 Support external PA for speaker.
+static int msm8x16_setup_spk_ext_pa(struct platform_device *pdev, struct msm8916_asoc_mach_data *pdata)
+{
+#if defined(CONFIG_KERNEL_CUSTOM_P3588)
+	int ret;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *spkl_ext_pa_sus;
+	struct pinctrl_state *spkr_ext_pa_sus;
+
+	pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(pinctrl)) {
+		pr_err("%s: Unable to get pinctrl handle\n", __func__);
+	}
+
+	//for left speaker
+	spkl_ext_pa_sus = pinctrl_lookup_state(pinctrl, "spkl_ext_pa_sus");
+	if (IS_ERR(spkl_ext_pa_sus)) {
+		pr_err("%s: Unable to get  spkl_ext_pa_sus disable handle\n", __func__);
+	}
+	ret=pinctrl_select_state( pinctrl, spkl_ext_pa_sus);
+	if (ret < 0) {
+		pr_err("%s: Unable to  spkl_ext_pa_sus  handle\n", __func__);
+	}
+
+	//for right speaker
+	spkr_ext_pa_sus = pinctrl_lookup_state(pinctrl, "spkr_ext_pa_sus");
+	if (IS_ERR(spkr_ext_pa_sus)) {
+		pr_err("%s: Unable to get spkr_ext_pa_sus disable handle\n", __func__);
+	}
+	ret=pinctrl_select_state( pinctrl, spkr_ext_pa_sus);
+	if (ret < 0) {
+		pr_err("%s: Unable to  spkr_ext_pa_sus  handle\n", __func__);
+	}
+#endif
+	pdata->spk_ext_pa_l_gpio = of_get_named_gpio(pdev->dev.of_node,
+					"qcom,spk_ext_pa_l", 0);
+    pdata->spk_ext_pa_r_gpio = of_get_named_gpio(pdev->dev.of_node,
+					"qcom,spk_ext_pa_r", 0);
+	if (pdata->spk_ext_pa_l_gpio < 0 || pdata->spk_ext_pa_r_gpio < 0) {
+		pr_debug("%s, spk_ext_pa_gpio_lc not exist!\n", __func__);
+	} else {
+		pr_debug("%s, spk_ext_pa_l_gpio=%d  spk_ext_pa_r_gpio=%d\n",
+			__func__, pdata->spk_ext_pa_l_gpio, pdata->spk_ext_pa_r_gpio);
+		if (!gpio_is_valid(pdata->spk_ext_pa_l_gpio))
+		{
+			pr_err("%s: Invalid external left speaker gpio: %d",
+				__func__, pdata->spk_ext_pa_l_gpio);
+			return -EINVAL;
+		} else {
+			if (gpio_request(pdata->spk_ext_pa_l_gpio, "spk_ext_pa_l_gpio")){
+				pr_err("spk_ext_pa_l_gpio request failed\n");
+				return -EINVAL;
+			}
+			if (gpio_direction_output(pdata->spk_ext_pa_l_gpio, 0)) {
+				pr_err("set_direction for spk_ext_pa_l_gpio failed\n");
+				return -EINVAL;
+			}
+		}
+
+		if (!gpio_is_valid(pdata->spk_ext_pa_r_gpio))
+		{
+			pr_err("%s: Invalid external right speaker gpio: %d",
+				__func__, pdata->spk_ext_pa_r_gpio);
+			return -EINVAL;
+		} else {
+			if (gpio_request(pdata->spk_ext_pa_r_gpio, "spk_ext_pa_r_gpio")){
+				pr_err("spk_ext_pa_r_gpio request failed\n");
+				return -EINVAL;
+			}
+			if (gpio_direction_output(pdata->spk_ext_pa_r_gpio, 0)) {
+				pr_err("set_direction for spk_ext_pa_r_gpio failed\n");
+				return -EINVAL;
+			}
+		}
+	}
+	return 0;
+}
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 static int msm8x16_setup_rec_ext_pa(struct platform_device *pdev, struct msm8916_asoc_mach_data *pdata)
 {
@@ -3205,6 +3384,12 @@ parse_mclk_freq:
 	pdata->lb_mode = false;
 
 	msm8952_dt_parse_cap_info(pdev, pdata);
+#if defined(CONFIG_SPEAKER_EXT_PA)
+	pr_debug("At %d In (%s),will run msm8x16_setup_spk_ext_pa\n",__LINE__, __FUNCTION__);
+	ret = msm8x16_setup_spk_ext_pa(pdev, pdata);
+	if (ret)
+		pr_debug("%s, msm8x16_setup_spk_ext_pa error!\n", __func__);
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 	pr_debug("At %d In (%s),will run msm8x16_setup_rec_ext_pa\n",__LINE__, __FUNCTION__);
 	ret = msm8x16_setup_rec_ext_pa(pdev, pdata);
@@ -3267,7 +3452,13 @@ err:
 			kfree(msm8952_codec_conf[i].name_prefix);
 		}
 	}
-	
+
+#if defined(CONFIG_SPEAKER_EXT_PA)
+	if (gpio_is_valid(pdata->spk_ext_pa_l_gpio))
+		gpio_free(pdata->spk_ext_pa_l_gpio);
+	if (gpio_is_valid(pdata->spk_ext_pa_r_gpio))
+		gpio_free(pdata->spk_ext_pa_r_gpio);
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 #if !(defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3588))
 	if (gpio_is_valid(pdata->spk_rec_switch_gpio_lc))

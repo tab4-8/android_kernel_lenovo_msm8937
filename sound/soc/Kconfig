@@ -36,6 +36,18 @@ config RECEIVER_EXT_PA
     help
         Support for external PA.
 
+config SPEAKER_EXT_PA
+    default n
+    bool "Speaker external PA"
+    help
+        Support for external PA.
+
+config SPEAKER_EXT_PA_AW8738
+    default n
+    bool "Speaker external PA AW8738"
+    help
+        Support for the AW8738.
+
 # All the supported SoCs
 source "sound/soc/adi/Kconfig"
 source "sound/soc/atmel/Kconfig"
