@@ -228,6 +228,10 @@ struct msm8916_asoc_mach_data {
 	int ext_pa;
 	int us_euro_gpio;
 	int spk_ext_pa_gpio;
+#if defined(CONFIG_SPEAKER_EXT_PA)
+	int spk_ext_pa_l_gpio;
+    int spk_ext_pa_r_gpio;
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 #if !(defined (CONFIG_KERNEL_CUSTOM_P3592) || defined (CONFIG_KERNEL_CUSTOM_P3590) || defined(CONFIG_KERNEL_CUSTOM_P3588))
 	int spk_rec_switch_gpio_lc;
