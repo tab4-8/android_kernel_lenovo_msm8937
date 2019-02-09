@@ -1238,7 +1238,12 @@ static void qpnp_flash_led_work(struct work_struct *work)
 	struct qpnp_flash_led *led =
 			dev_get_drvdata(&flash_node->spmi_dev->dev);
 	union power_supply_propval psy_prop;
+#if   defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3592)
+
+	int rc, brightness = flash_node->cdev.brightness;
+#else
 	int rc, brightness;
+#endif	
 	int max_curr_avail_ma = 0;
 	int total_curr_ma = 0;
 	int i;
@@ -1247,21 +1252,40 @@ static void qpnp_flash_led_work(struct work_struct *work)
 	/* Global lock is to synchronize between the flash leds and torch */
 	mutex_lock(&led->flash_led_lock);
 	/* Local lock is to synchronize for one led instance */
-	mutex_lock(&flash_node->cdev.led_access);
+	#if   defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3592)
 
+#else
+	mutex_lock(&flash_node->cdev.led_access);
 	brightness = flash_node->cdev.brightness;
+#endif
+	
+
 	if (!brightness)
 		goto turn_off;
 
 	if (led->open_fault) {
 		dev_err(&led->spmi_dev->dev, "Open fault detected\n");
+		#if   defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3592)
+
+	mutex_unlock(&led->flash_led_lock);
+		return;
+#else
 		goto unlock_mutex;
+#endif
 	}
 
 	if (!flash_node->flash_on && flash_node->num_regulators > 0) {
 		rc = flash_regulator_enable(led, flash_node, true);
 		if (rc)
+			#if   defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3592)
+
+		if (rc) {
+			mutex_unlock(&led->flash_led_lock);
+			return;
+		}
+#else
 			goto unlock_mutex;
+#endif
 	}
 
 	if (!led->gpio_enabled && led->pinctrl) {
@@ -1717,8 +1741,12 @@ static void qpnp_flash_led_work(struct work_struct *work)
 	}
 
 	flash_node->flash_on = true;
+	#if   defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3592)
+
+#else
 unlock_mutex:
 	mutex_unlock(&flash_node->cdev.led_access);
+#endif
 	mutex_unlock(&led->flash_led_lock);
 
 	return;
@@ -1787,15 +1815,27 @@ exit_flash_hdrm_sns:
 	}
 exit_flash_led_work:
 	rc = qpnp_flash_led_module_disable(led, flash_node);
+	#if   defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3592)
+
+	if (rc) {
+		dev_err(&led->spmi_dev->dev, "Module disable failed\n");
+		goto exit_flash_led_work;
+	}
+#else	
 	if (rc)
 		dev_err(&led->spmi_dev->dev, "Module disable failed\n");
+#endif
 
 error_enable_gpio:
 	if (flash_node->flash_on && flash_node->num_regulators > 0)
 		flash_regulator_enable(led, flash_node, false);
 
 	flash_node->flash_on = false;
+	#if   defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3592)
+
+#else	
 	mutex_unlock(&flash_node->cdev.led_access);
+#endif
 	mutex_unlock(&led->flash_led_lock);
 
 	return;
@@ -1849,8 +1889,11 @@ static void qpnp_flash_led_brightness_set(struct led_classdev *led_cdev,
 				led->flash_node[led->num_leds - 1].
 				prgm_current2 =
 				flash_node->prgm_current;
+			#if   defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3592)
 
+#else
 			return;
+#endif
 		} else if (flash_node->id == FLASH_LED_SWITCH) {
 			if (!value) {
 				flash_node->prgm_current = 0;
