@@ -4679,7 +4679,19 @@ static void mdss_mdp_config_cx_voltage(struct mdss_data_type *mdata, int enable)
 					ret);
 	}
 }
-
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)  || defined(CONFIG_KERNEL_CUSTOM_P3592)
+int mdss_panel_get_boot_cfg(void)
+{
+	int rc;
+	if (!mdss_res || !mdss_res->pan_cfg.init_done)
+		return -EPROBE_DEFER;
+	if (mdss_res->pan_cfg.lk_cfg)
+		rc = 1;
+	else
+		rc = 0;
+	return rc;
+}
+#endif
 static int mdss_mdp_cx_ctrl(struct mdss_data_type *mdata, int enable)
 {
 	int rc = 0;
