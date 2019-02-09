@@ -39,6 +39,10 @@
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
 				qcom,pull-up = <1>;
+				qcom,support-reset = <1>;//support reset
+				qcom,s1-timer = <6720>;//6720ms  max 10256
+				qcom,s2-timer = <2000>;//2000ms
+				qcom,s2-type = <5>;//soft(0) warm(1) shutdown(4) hard (7) 
 				linux,code = <116>;
 			};
 

@@ -39,6 +39,11 @@
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
 				qcom,pull-up = <1>;
+				/*lc  mike_zhu add 20170208 for powerkey*/
+				qcom,support-reset = <1>;//support reset
+				qcom,s1-timer = <10256>;//6720ms   4480, 6720, 10256   max 10256 
+				qcom,s2-timer = <2000>;//2000ms
+				qcom,s2-type = <5>;//soft(0) warm(1) shutdown(4) hard (7) 
 				linux,code = <116>;
 			};
 

@@ -24,6 +24,26 @@
 };
 
 &mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&dsi_auo_b080eab02_0_rm68200_800p_video>;
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active>;
+	pinctrl-1 = <&mdss_dsi_suspend>;
+   
+    //qcom,platform-te-gpio = <&tlmm 50 0>;
+	qcom,platform-reset-gpio = <&tlmm 8 0>;
+	qcom,platform-bklight-en-gpio = <&tlmm 93 1>;    
+
+};
+
+&dsi_auo_b080eab02_0_rm68200_800p_video {
+	//qcom,esd-check-enabled;
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
+};
+
+
+
+/*
+&mdss_dsi0 {
 	qcom,dsi-pref-prim-pan = <&dsi_hx8394f_720p_video>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active>;
@@ -36,6 +56,8 @@
 	qcom,esd-check-enabled;
 	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 };
+
+*/
 
 &soc {
 	i2c@78b7000 {
@@ -89,7 +111,33 @@
 		qcom,key-codes = <139 172 158>;
 		qcom,y-offset = <0>;
 	};
+
+gpio-leds {
+                 compatible = "gpio-leds";
+                 status = "okay";
+                 pinctrl-names = "default";
+                 pinctrl-0 = <&gpio_led_off>;
+ 
+                 red {
+                         gpios = <&tlmm 25 0>;
+                         label = "red";
+                         linux,default-trigger = "none";
+                         default-state = "off";
+                         retain-state-suspended;
+                 };
+ 
+                 green {
+                         gpios = <&tlmm 23 0>;
+                         label = "green";
+                         linux,default-trigger = "none";
+                         default-state = "off";
+                         retain-state-suspended;
+                 };
+         };
 };
+
+
+
 
 &wled {
 	qcom,cons-sync-write-delay-us = <1000>;
