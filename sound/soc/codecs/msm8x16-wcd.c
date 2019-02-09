@@ -140,6 +140,9 @@ static bool spkr_boost_en = true;
 
 #define MSM8X16_WCD_RELEASE_LOCK(x) mutex_unlock(&x)
 
+#if defined(CONFIG_RECEIVER_EXT_PA)
+static int external_rec_control = 0;
+#endif
 
 /* Codec supports 2 IIR filters */
 enum {
@@ -308,7 +311,9 @@ static void msm8x16_wcd_configure_cap(struct snd_soc_codec *codec,
 static bool msm8x16_wcd_use_mb(struct snd_soc_codec *codec);
 
 struct msm8x16_wcd_spmi msm8x16_wcd_modules[MAX_MSM8X16_WCD_DEVICE];
-
+#if defined(CONFIG_RECEIVER_EXT_PA)
+int msm8x16_rec_ext_pa_ctrl(struct msm8916_asoc_mach_data *pdatadata, bool value);
+#endif
 static void *adsp_state_notifier;
 
 static struct snd_soc_codec *registered_codec;
@@ -2270,6 +2275,28 @@ static int msm8x16_wcd_ext_spk_boost_set(struct snd_kcontrol *kcontrol,
 		__func__, msm8x16_wcd->spk_boost_set);
 	return 0;
 }
+#if defined(CONFIG_RECEIVER_EXT_PA)
+static int get_external_rec_pa(struct snd_kcontrol *kcontrol,
+		       struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("At %d In (%s),external_rec_control=%d\n",__LINE__, __FUNCTION__,external_rec_control);
+	ucontrol->value.integer.value[0] = external_rec_control;
+	return 0;
+}
+static int set_external_rec_pa(struct snd_kcontrol *kcontrol,
+		       struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	struct msm8916_asoc_mach_data *pdata = NULL;
+	pdata = snd_soc_card_get_drvdata(codec->component.card);
+	pr_debug("At %d In (%s),external_rec_control=%d,value.integer.value[0]=%ld\n",__LINE__, __FUNCTION__,external_rec_control,ucontrol->value.integer.value[0]);
+	if (external_rec_control == ucontrol->value.integer.value[0])
+		return 0;
+	external_rec_control = ucontrol->value.integer.value[0];
+	msm8x16_rec_ext_pa_ctrl(pdata, external_rec_control);
+	return 1;
+}
+#endif
 static int msm8x16_wcd_get_iir_enable_audio_mixer(
 					struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
@@ -2547,6 +2574,13 @@ static const struct soc_enum msm8x16_wcd_spk_boost_ctl_enum[] = {
 		SOC_ENUM_SINGLE_EXT(2, msm8x16_wcd_spk_boost_ctrl_text),
 };
 
+#if defined(CONFIG_RECEIVER_EXT_PA)
+static const char * const msm8x16_external_rec_pa_text[] = {
+		"OFF", "ON"};
+static const struct soc_enum msm8x16_external_rec_pa_enum[] = {
+		SOC_ENUM_SINGLE_EXT(2, msm8x16_external_rec_pa_text),
+};
+#endif
 static const char * const msm8x16_wcd_ext_spk_boost_ctrl_text[] = {
 		"DISABLE", "ENABLE"};
 static const struct soc_enum msm8x16_wcd_ext_spk_boost_ctl_enum[] = {
@@ -2593,6 +2627,10 @@ static const struct snd_kcontrol_new msm8x16_wcd_snd_controls[] = {
 
 	SOC_ENUM_EXT("EAR PA Gain", msm8x16_wcd_ear_pa_gain_enum[0],
 		msm8x16_wcd_pa_gain_get, msm8x16_wcd_pa_gain_put),
+#if defined(CONFIG_RECEIVER_EXT_PA)
+	SOC_ENUM_EXT("Receiver PA Open", msm8x16_external_rec_pa_enum[0],
+		get_external_rec_pa, set_external_rec_pa),
+#endif
 
 	SOC_ENUM_EXT("Speaker Boost", msm8x16_wcd_spk_boost_ctl_enum[0],
 		msm8x16_wcd_spk_boost_get, msm8x16_wcd_spk_boost_set),
@@ -3117,6 +3155,136 @@ static const struct soc_enum lo_enum =
 static const struct snd_kcontrol_new lo_mux[] = {
 	SOC_DAPM_ENUM("LINE_OUT", lo_enum)
 };
+#if defined(CONFIG_RECEIVER_EXT_PA)
+ int msm8x16_rec_ext_pa_ctrl(struct msm8916_asoc_mach_data *pdatadata, bool value)
+{
+	struct msm8916_asoc_mach_data *pdata = pdatadata; //snd_soc_card_get_drvdata(data);
+	bool on_off = value;
+	int ret = 0;
+
+#if defined (CONFIG_KERNEL_CUSTOM_P3590)
+	pr_debug("%s, on_off=%d, spk_ext_pa_l_gpio=%d\n", __func__, on_off, pdata->spk_ext_pa_l_gpio);
+	//AW87318 is two-in-one IC for speaker & receiver.
+	if (gpio_is_valid(pdata->spk_ext_pa_l_gpio))
+	{
+		if (on_off)
+		{
+			//Use mode 8 for receiver.
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			//msleep(5);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			msleep(50);
+		}
+		else {
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+		}
+	}
+	else
+	{
+		pr_debug("%s, error\n", __func__);
+		ret = -EINVAL;
+	}
+
+	return ret;
+#elif defined(CONFIG_KERNEL_CUSTOM_P3588)
+	pr_debug("%s, on_off=%d, spk_ext_pa_l_gpio=%d\n",
+		__func__, on_off, pdata->spk_ext_pa_l_gpio);
+	//AW87317  receiver mode 5
+	if (gpio_is_valid(pdata->spk_ext_pa_l_gpio))
+	{
+		if (on_off)
+		{
+			//Use mode 5 for receiver.
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+            		mdelay(1);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+			udelay(2);
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, true);
+			msleep(50);
+		}
+		else {
+			gpio_set_value_cansleep(pdata->spk_ext_pa_l_gpio, false);
+		}
+	}
+	else
+	{
+		pr_debug("%s, error\n", __func__);
+		ret = -EINVAL;
+	}
+
+	return ret;
+#else
+	pr_debug("%s, rec_is_on=%d,spk_rec_switch_gpio_lc=%d, on_off=%d\n", __func__, pdata->rec_is_on,pdata->spk_rec_switch_gpio_lc, on_off);
+	if (gpio_is_valid(pdata->spk_rec_switch_gpio_lc))
+	{
+		if (on_off)
+		{
+			gpio_direction_output(pdata->spk_rec_switch_gpio_lc, 0);
+			gpio_set_value_cansleep(pdata->spk_rec_switch_gpio_lc, false);
+			//pr_debug("At %d In (%s),will delay\n",__LINE__, __FUNCTION__);
+			msleep(3);
+			pr_debug("At %d In (%s),after set,spk_rec_switch_gpio_lc=%d\n",__LINE__, __FUNCTION__,gpio_get_value(pdata->spk_rec_switch_gpio_lc));
+
+		}
+		else {
+			//pr_debug("At %d In (%s),close pa\n",__LINE__, __FUNCTION__);
+			gpio_direction_output(pdata->spk_rec_switch_gpio_lc, 1);
+			gpio_set_value_cansleep(pdata->spk_rec_switch_gpio_lc, true);
+			pr_debug("At %d In (%s),after close,spk_rec_switch_gpio_lc=%d\n",__LINE__, __FUNCTION__,gpio_get_value(pdata->spk_rec_switch_gpio_lc));
+			}
+	}
+	else
+	{
+		pr_debug("%s, error\n", __func__);
+		ret = -EINVAL;
+	}
+
+	return ret;
+#endif
+}
+#endif
 
 static void msm8x16_wcd_codec_enable_adc_block(struct snd_soc_codec *codec,
 					 int enable)
@@ -4946,6 +5114,10 @@ static int msm8x16_wcd_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = w->codec;
 	struct msm8x16_wcd_priv *msm8x16_wcd = snd_soc_codec_get_drvdata(codec);
+#if defined(CONFIG_RECEIVER_EXT_PA)
+	struct msm8916_asoc_mach_data *pdata = NULL;
+	pdata = snd_soc_card_get_drvdata(codec->component.card);
+#endif
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
@@ -4975,6 +5147,10 @@ static int msm8x16_wcd_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 		usleep_range(7000, 7100);
 		snd_soc_update_bits(codec,
 			MSM8X16_WCD_A_CDC_RX1_B6_CTL, 0x01, 0x00);
+#if defined(CONFIG_RECEIVER_EXT_PA)
+		pr_debug("At %d In (%s), will run msm8x16_rec_ext_pa_ctrl,true\n",__LINE__, __FUNCTION__);
+		schedule_delayed_work(&pdata->rec_gpio_work, msecs_to_jiffies(40));//50
+#endif
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		snd_soc_update_bits(codec,
@@ -4998,6 +5174,16 @@ static int msm8x16_wcd_codec_enable_ear_pa(struct snd_soc_dapm_widget *w,
 		dev_dbg(w->codec->dev,
 			"%s: Sleeping 7ms after disabling EAR PA\n",
 			__func__);
+#if defined(CONFIG_RECEIVER_EXT_PA)
+		cancel_delayed_work_sync(&pdata->rec_gpio_work);
+		msm8x16_rec_ext_pa_ctrl(pdata, false);
+#if !(defined (CONFIG_KERNEL_CUSTOM_P3590) || defined(CONFIG_KERNEL_CUSTOM_P3588))
+		pr_debug("At %d In (%s),close pa,spk_rec_switch_gpio_lc=%d\n",
+			__LINE__, __FUNCTION__,gpio_get_value(pdata->spk_rec_switch_gpio_lc));
+#endif
+		pdata->rec_is_on = 0;
+		//schedule_delayed_work(&pdata->pa_gpio_work_close, msecs_to_jiffies(4));
+#endif
 		snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_RX_EAR_CTL,
 			    0x40, 0x00);
 		usleep_range(7000, 7100);
@@ -5723,11 +5909,11 @@ static void msm8x16_wcd_configure_cap(struct snd_soc_codec *codec,
 				0x40, (MICBIAS_NO_EXT_BYP_CAP << 6));
 	} else if (micbias2) {
 		snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MICB_1_EN,
-				0x40, (pdata->micbias2_cap_mode << 6));
+				0x40, (pdata->micbias2_cap_mode << 6));	
 	} else if (micbias1) {
 		snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MICB_1_EN,
 				0x40, (pdata->micbias1_cap_mode << 6));
-	} else {
+	} else {	
 		snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MICB_1_EN,
 				0x40, 0x00);
 	}

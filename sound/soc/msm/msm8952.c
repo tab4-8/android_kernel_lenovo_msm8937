@@ -80,6 +80,9 @@ static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 static int msm8952_wsa_switch_event(struct snd_soc_dapm_widget *w,
 			      struct snd_kcontrol *kcontrol, int event);
 
+#if defined(CONFIG_RECEIVER_EXT_PA)
+extern int msm8x16_rec_ext_pa_ctrl(struct msm8916_asoc_mach_data *pdatadata, bool value);
+#endif
 /*
  * Android L spec
  * Need to report LINEIN
@@ -2651,13 +2654,32 @@ void msm8952_disable_mclk(struct work_struct *work)
 	mutex_unlock(&pdata->cdc_mclk_mutex);
 }
 
+#if defined(CONFIG_RECEIVER_EXT_PA)
+static void msm8x16_rec_ext_pa_delayed(struct work_struct *work)
+{
+	struct delayed_work *dwork;
+	struct msm8916_asoc_mach_data *pdata;
+
+	dwork = to_delayed_work(work);
+	pdata = container_of(dwork, struct msm8916_asoc_mach_data, rec_gpio_work);
+	pr_debug("At %d In (%s),enter,pdata->rec_is_on=%d\n",__LINE__, __FUNCTION__,pdata->rec_is_on);
+
+	if(pdata->rec_is_on == 0)
+	{
+	pr_debug("At %d In (%s),open rec\n",__LINE__, __FUNCTION__);
+	msm8x16_rec_ext_pa_ctrl(pdata, true);
+	pdata->rec_is_on = 2;
+	}
+}
+#endif
+
 static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 {
 	struct snd_soc_card *card = codec->component.card;
 	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int value, ret;
 
-	pr_debug("%s: configure gpios for US_EU\n", __func__);
+	pr_err("%s: configure gpios for US_EU\n", __func__);
 
 	if (!gpio_is_valid(pdata->us_euro_gpio)) {
 		pr_err("%s: Invalid gpio: %d", __func__, pdata->us_euro_gpio);
@@ -2671,7 +2693,7 @@ static bool msm8952_swap_gnd_mic(struct snd_soc_codec *codec)
 		return false;
 	}
 	gpio_set_value_cansleep(pdata->us_euro_gpio, !value);
-	pr_debug("%s: swap select switch %d to %d\n", __func__, value, !value);
+	pr_err("us_euro_gpio %s: swap select switch %d to %d\n", __func__, value, !value);
 
 	ret = msm_gpioset_suspend(CLIENT_WCD_INT, "us_eu_gpio");
 	if (ret < 0) {
@@ -2698,6 +2720,42 @@ static void msm8952_dt_parse_cap_info(struct platform_device *pdev,
 		 MICBIAS_EXT_BYP_CAP : MICBIAS_NO_EXT_BYP_CAP);
 }
 
+#if defined(CONFIG_RECEIVER_EXT_PA)
+static int msm8x16_setup_rec_ext_pa(struct platform_device *pdev, struct msm8916_asoc_mach_data *pdata)
+{
+#if defined (CONFIG_KERNEL_CUSTOM_P3590) || defined (CONFIG_KERNEL_CUSTOM_P3588)
+	//no receiver switch gpio for P3590/93588, just return for init.
+	return 0;
+#else
+    //struct pinctrl *pinctrl;
+	int ret;
+
+	pdata->spk_rec_switch_gpio_lc = of_get_named_gpio_flags(pdev->dev.of_node, "qcom,spk_rec_switch",
+				0, NULL);
+	if (pdata->spk_rec_switch_gpio_lc < 0) {
+		pr_debug("%s, spk_rec_switch_gpio_lc not exist!\n", __func__);
+	} else {
+		pr_debug("%s, spk_rec_switch_gpio_lc=%d\n", __func__, pdata->spk_rec_switch_gpio_lc);
+
+		if (gpio_is_valid(pdata->spk_rec_switch_gpio_lc))
+		{
+			pr_debug("%s, spk_rec_switch_gpio_lc request\n", __func__);
+			ret = gpio_request(pdata->spk_rec_switch_gpio_lc, "ext/spk_rec_switch-GPIO");
+			if (ret != 0) {
+				pr_debug("Failed to request /spk/rec switch-GPIO: %d\n", ret);
+				return -EINVAL;
+			}
+			gpio_direction_output(pdata->spk_rec_switch_gpio_lc, 1);
+			pr_debug("At %d In (%s),set spk_rec_switch_gpio_lc to high\n",
+				__LINE__, __FUNCTION__);//check run to here ?
+			gpio_set_value_cansleep(pdata->spk_rec_switch_gpio_lc, 1);
+			msleep(5);
+		}
+	}
+	return 0;
+#endif
+}
+#endif
 
 static int msm8952_populate_dai_link_component_of_node(
 		struct snd_soc_card *card)
@@ -3147,7 +3205,12 @@ parse_mclk_freq:
 	pdata->lb_mode = false;
 
 	msm8952_dt_parse_cap_info(pdev, pdata);
-
+#if defined(CONFIG_RECEIVER_EXT_PA)
+	pr_debug("At %d In (%s),will run msm8x16_setup_rec_ext_pa\n",__LINE__, __FUNCTION__);
+	ret = msm8x16_setup_rec_ext_pa(pdev, pdata);
+	if (ret)
+		pr_debug("%s, msm8x16_setup_rec_ext_pa error!\n", __func__);
+#endif
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);
 	snd_soc_card_set_drvdata(card, pdata);
@@ -3156,6 +3219,9 @@ parse_mclk_freq:
 		goto err;
 	/* initialize timer */
 	INIT_DELAYED_WORK(&pdata->disable_mclk_work, msm8952_disable_mclk);
+#if defined(CONFIG_RECEIVER_EXT_PA)
+	INIT_DELAYED_WORK(&pdata->rec_gpio_work, msm8x16_rec_ext_pa_delayed);
+#endif
 	mutex_init(&pdata->cdc_mclk_mutex);
 	atomic_set(&pdata->mclk_rsc_ref, 0);
 	if (card->aux_dev) {
@@ -3201,6 +3267,13 @@ err:
 			kfree(msm8952_codec_conf[i].name_prefix);
 		}
 	}
+	
+#if defined(CONFIG_RECEIVER_EXT_PA)
+#if !(defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3588))
+	if (gpio_is_valid(pdata->spk_rec_switch_gpio_lc))
+		gpio_free(pdata->spk_rec_switch_gpio_lc);
+#endif
+#endif
 err1:
 	devm_kfree(&pdev->dev, pdata);
 	return ret;
