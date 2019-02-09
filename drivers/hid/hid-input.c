@@ -717,7 +717,8 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		case 0x034: map_key_clear(KEY_SLEEP);		break;
 		case 0x035: map_key_clear(KEY_KBDILLUMTOGGLE);	break;
 		case 0x036: map_key_clear(BTN_MISC);		break;
-
+		case 0x03a: map_key_clear(KEY_MICMUTE);		break;
+		
 		case 0x040: map_key_clear(KEY_MENU);		break; /* Menu */
 		case 0x041: map_key_clear(KEY_SELECT);		break; /* Menu Pick */
 		case 0x042: map_key_clear(KEY_UP);		break; /* Menu Up */
