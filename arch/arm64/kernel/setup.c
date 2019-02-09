@@ -97,6 +97,22 @@ static const char *cpu_name;
 static const char *machine_name;
 phys_addr_t __fdt_pointer __initdata;
 
+#ifdef CONFIG_KERNEL_CUSTOM_P3592
+bool boot_charger_mode = false;
+static int __init android_boot_mode (char *opt)
+{
+	if ( !opt || !*opt)
+		return 1;
+	if (!strncmp(opt, "charger", sizeof("charger"))){
+		boot_charger_mode = true;
+	}
+
+	return 1;
+}
+
+__setup("androidboot.mode=",android_boot_mode);
+#endif
+
 /*
  * Standard memory resources
  */
