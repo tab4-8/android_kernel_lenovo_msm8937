@@ -162,6 +162,17 @@ enum usb_chg_state {
  *			voltages between 2.0-3.3v for identification.
  *
  */
+#ifdef CONFIG_KERNEL_CUSTOM_P3588
+enum usb_chg_type {
+	USB_INVALID_CHARGER = 0,
+	USB_SDP_CHARGER,
+	USB_DCP_CHARGER,
+	USB_CDP_CHARGER,
+	USB_PROPRIETARY_CHARGER,
+	USB_FLOATED_CHARGER,
+	USB_T_HUB_CHARGER,
+};
+#else
 enum usb_chg_type {
 	USB_INVALID_CHARGER = 0,
 	USB_SDP_CHARGER,
@@ -170,6 +181,7 @@ enum usb_chg_type {
 	USB_PROPRIETARY_CHARGER,
 	USB_FLOATED_CHARGER,
 };
+#endif
 
 /**
  * Used different VDDCX voltage voting mechnism
@@ -408,6 +420,9 @@ struct msm_otg {
 	struct usb_phy phy;
 	struct msm_otg_platform_data *pdata;
 	struct platform_device *pdev;
+#ifdef CONFIG_KERNEL_CUSTOM_P3588
+	struct qpnp_vadc_chip *id_vadc_dev;
+#endif
 	int irq;
 	int async_irq;
 	int phy_irq;
