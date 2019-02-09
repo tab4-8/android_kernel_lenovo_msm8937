@@ -228,6 +228,11 @@ struct msm8916_asoc_mach_data {
 	int ext_pa;
 	int us_euro_gpio;
 	int spk_ext_pa_gpio;
+#if defined(CONFIG_KERNEL_CUSTOM_P3588)
+	struct mutex speaker_pa_mutex;
+	struct delayed_work speaker_pa_enable_work;
+    unsigned char spk_is_on;
+	#endif
 #if defined(CONFIG_SPEAKER_EXT_PA)
 	int spk_ext_pa_l_gpio;
     int spk_ext_pa_r_gpio;
