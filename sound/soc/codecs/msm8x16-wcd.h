@@ -232,6 +232,11 @@ struct msm8916_asoc_mach_data {
 	int spk_ext_pa_l_gpio;
     int spk_ext_pa_r_gpio;
 #endif
+#if defined(CONFIG_SPEAKER_HEADPHONE_SWITCH)
+    int spk_hs_switch_gpio;
+    struct delayed_work hs_gpio_work;
+    unsigned char hs_is_on;
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 #if !(defined (CONFIG_KERNEL_CUSTOM_P3592) || defined (CONFIG_KERNEL_CUSTOM_P3590) || defined(CONFIG_KERNEL_CUSTOM_P3588))
 	int spk_rec_switch_gpio_lc;

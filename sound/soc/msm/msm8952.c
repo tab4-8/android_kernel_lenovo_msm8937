@@ -86,6 +86,9 @@ static int msm8952_wsa_switch_event(struct snd_soc_dapm_widget *w,
 #if defined(CONFIG_SPEAKER_EXT_PA)
 int msm8x16_spk_ext_pa_ctrl(struct msm8916_asoc_mach_data *pdatadata, bool value);
 #endif
+#if defined(CONFIG_SPEAKER_HEADPHONE_SWITCH)
+extern int msm8x16_hs_ext_pa_ctrl(struct msm8916_asoc_mach_data *pdatadata, bool value);
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 extern int msm8x16_rec_ext_pa_ctrl(struct msm8916_asoc_mach_data *pdatadata, bool value);
 #endif
@@ -2758,6 +2761,24 @@ void msm8952_disable_mclk(struct work_struct *work)
 	mutex_unlock(&pdata->cdc_mclk_mutex);
 }
 
+#if defined(CONFIG_SPEAKER_HEADPHONE_SWITCH)
+static void msm8x16_hs_ext_pa_delayed(struct work_struct *work)
+{
+	struct delayed_work *dwork;
+	struct msm8916_asoc_mach_data *pdata;
+
+	dwork = to_delayed_work(work);
+	pdata = container_of(dwork, struct msm8916_asoc_mach_data, hs_gpio_work);
+	pr_debug("At %d In (%s),enter,pdata->hs_is_on=%d\n",__LINE__, __FUNCTION__,pdata->hs_is_on);
+
+	if(pdata->hs_is_on == 0)
+	{
+	pr_debug("At %d In (%s),open pa\n",__LINE__, __FUNCTION__);
+	msm8x16_hs_ext_pa_ctrl(pdata, true);
+	pdata->hs_is_on = 2;
+	}
+}
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 static void msm8x16_rec_ext_pa_delayed(struct work_struct *work)
 {
@@ -2900,6 +2921,56 @@ static int msm8x16_setup_spk_ext_pa(struct platform_device *pdev, struct msm8916
 				pr_err("set_direction for spk_ext_pa_r_gpio failed\n");
 				return -EINVAL;
 			}
+		}
+	}
+	return 0;
+}
+#endif
+#if defined(CONFIG_SPEAKER_HEADPHONE_SWITCH)
+static int msm8x16_setup_hs_ext_pa(struct platform_device *pdev, struct msm8916_asoc_mach_data *pdata)
+{
+	//struct pinctrl *pinctrl;
+	int ret;
+
+    pdata->spk_hs_switch_gpio = of_get_named_gpio_flags(pdev->dev.of_node, "qcom,spk_hs_switch",
+				0, NULL);
+	if (pdata->spk_hs_switch_gpio < 0) {
+		pr_debug("%s, spk_hs_switch_gpio not exist!\n", __func__);
+	} else {
+		pr_debug("%s, spk_hs_switch_gpio=%d\n", __func__, pdata->spk_hs_switch_gpio);
+#if 0
+		pinctrl = devm_pinctrl_get(&pdev->dev);
+		if (IS_ERR(pinctrl)) {
+			pr_err("%s: Unable to get pinctrl handle\n", __func__);
+			return -EINVAL;
+		}
+		pinctrl_info.pinctrl = pinctrl;
+
+		/* get pinctrl handle for spk_hs_switch_gpio */
+		pinctrl_info.spk_hs_switch_act = pinctrl_lookup_state(pinctrl, "spk_hs_switch_act");
+		if (IS_ERR(pinctrl_info.spk_hs_switch_act)) {
+			pr_err("%s: Unable to get pinctrl disable handle\n", __func__);
+			return -EINVAL;
+		}
+		pinctrl_info.spk_hs_switch_sus = pinctrl_lookup_state(pinctrl, "spk_hs_switch_sus");
+		if (IS_ERR(pinctrl_info.spk_hs_switch_sus)) {
+			pr_err("%s: Unable to get pinctrl active handle\n", __func__);
+			return -EINVAL;
+		}
+#endif
+		if (gpio_is_valid(pdata->spk_hs_switch_gpio))
+		{
+			pr_debug("%s, spk_hs_switch_gpio request\n", __func__);
+			ret = gpio_request(pdata->spk_hs_switch_gpio, "ext/spk_hs_switch-GPIO");
+			if (ret != 0) {
+				pr_debug("Failed to request /ext/spk_hs_switch-GPIO: %d\n", ret);
+				return -EINVAL;
+			}
+			gpio_direction_output(pdata->spk_hs_switch_gpio, 0);
+			pr_debug("At %d In (%s),set spk_hs_switch_gpio to low\n",
+				__LINE__, __FUNCTION__);//check run to here ?
+			gpio_set_value_cansleep(pdata->spk_hs_switch_gpio, 0);
+			msleep(5);
 		}
 	}
 	return 0;
@@ -3396,6 +3467,12 @@ parse_mclk_freq:
 	if (ret)
 		pr_debug("%s, msm8x16_setup_spk_ext_pa error!\n", __func__);
 #endif
+#if defined(CONFIG_SPEAKER_HEADPHONE_SWITCH)   
+    pr_debug("At %d In (%s),will run msm8x16_setup_hs_ext_pa\n",__LINE__, __FUNCTION__);
+	ret = msm8x16_setup_hs_ext_pa(pdev, pdata);
+	if (ret)
+		pr_debug("%s, msm8x16_setup_hs_ext_pa error!\n", __func__);
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 	pr_debug("At %d In (%s),will run msm8x16_setup_rec_ext_pa\n",__LINE__, __FUNCTION__);
 	ret = msm8x16_setup_rec_ext_pa(pdev, pdata);
@@ -3410,6 +3487,10 @@ parse_mclk_freq:
 		goto err;
 	/* initialize timer */
 	INIT_DELAYED_WORK(&pdata->disable_mclk_work, msm8952_disable_mclk);
+#if defined(CONFIG_SPEAKER_HEADPHONE_SWITCH)
+    INIT_DELAYED_WORK(&pdata->hs_gpio_work, msm8x16_hs_ext_pa_delayed);
+	//INIT_DELAYED_WORK(&pdata->pa_gpio_work_close, msm8x16_spk_ext_pa_close);
+#endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 	INIT_DELAYED_WORK(&pdata->rec_gpio_work, msm8x16_rec_ext_pa_delayed);
 #endif
@@ -3464,6 +3545,10 @@ err:
 		gpio_free(pdata->spk_ext_pa_l_gpio);
 	if (gpio_is_valid(pdata->spk_ext_pa_r_gpio))
 		gpio_free(pdata->spk_ext_pa_r_gpio);
+#endif
+#if defined(CONFIG_SPEAKER_HEADPHONE_SWITCH)
+	if (gpio_is_valid(pdata->spk_hs_switch_gpio))
+		gpio_free(pdata->spk_hs_switch_gpio);
 #endif
 #if defined(CONFIG_RECEIVER_EXT_PA)
 #if !(defined (CONFIG_KERNEL_CUSTOM_P3592) || defined (CONFIG_KERNEL_CUSTOM_P3590) ||defined (CONFIG_KERNEL_CUSTOM_P3588))
