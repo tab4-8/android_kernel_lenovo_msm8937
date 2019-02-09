@@ -43,8 +43,15 @@ static struct mdss_dsi_data *mdss_dsi_res;
 #define DSI_DISABLE_PC_LATENCY 100
 #define DSI_ENABLE_PC_LATENCY PM_QOS_DEFAULT_VALUE
 
-static struct pm_qos_request mdss_dsi_pm_qos_request;
+#ifdef CONFIG_KERNEL_CUSTOM_P3588
+extern int elan_flag;	//lct--lyh--add for tp firmware update
+#endif
 
+
+static struct pm_qos_request mdss_dsi_pm_qos_request;
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+extern int mdss_dsi_panel_lcden_gpio_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, int on);
+#endif
 static void mdss_dsi_pm_qos_add_request(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
 	struct irq_info *irq_info;
@@ -287,6 +294,9 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 				panel_data);
 
 	ret = mdss_dsi_panel_reset(pdata, 0);
+	#ifdef CONFIG_KERNEL_CUSTOM_P3588
+    	mdelay(10);
+	#endif
 	if (ret) {
 		pr_warn("%s: Panel reset failed. rc=%d\n", __func__, ret);
 		ret = 0;
@@ -359,7 +369,9 @@ static int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 {
 	int ret;
 	struct mdss_panel_info *pinfo;
-
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+#endif
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
@@ -373,7 +385,19 @@ static int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 		pr_debug("%s: no change needed\n", __func__);
 		return 0;
 	}
+#ifdef CONFIG_KERNEL_CUSTOM_P3588	
+   	if(power_state==1){
+	 	gpio_direction_output(0,1);
+        mdelay(3);
+    	gpio_direction_output(47,1);
+	}
+#endif
 
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+		panel_data);
+	mdss_dsi_panel_lcden_gpio_ctrl(ctrl_pdata, power_state);
+#endif
 	/*
 	 * If a dynamic mode switch is pending, the regulators should not
 	 * be turned off or on.
@@ -400,6 +424,25 @@ static int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 			__func__, power_state);
 		ret = -EINVAL;
 	}
+
+#ifdef CONFIG_KERNEL_CUSTOM_P3588
+
+	if(power_state == 0)
+	{
+		if(elan_flag == 1)
+		{
+	 		gpio_direction_output(0,1);
+        	mdelay(1);
+    		gpio_direction_output(47,1);
+		}
+		else
+		{
+			gpio_direction_output(47,0);
+			mdelay(3);
+			gpio_direction_output(0,0);
+		}
+	}	
+#endif
 
 	if (!ret)
 		pinfo->panel_power_state = power_state;
