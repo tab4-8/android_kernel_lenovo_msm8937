@@ -3769,13 +3769,30 @@ static int msm8x16_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_PRE_PMU:
 		if (strnstr(w->name, internal1_text, strlen(w->name))) {
 			if (get_codec_version(msm8x16_wcd) >= CAJON)
+#if defined (CONFIG_KERNEL_CUSTOM_P3590) || defined(CONFIG_KERNEL_CUSTOM_P3588)
+				snd_soc_update_bits(codec,
+					MSM8X16_WCD_A_ANALOG_TX_1_2_ATEST_CTL_2,
+					0x03, 0x03);
+				snd_soc_update_bits(codec,
+					MSM8X16_WCD_A_ANALOG_MICB_1_INT_RBIAS,
+					0x80, 0x80);
+#else
 				snd_soc_update_bits(codec,
 					MSM8X16_WCD_A_ANALOG_TX_1_2_ATEST_CTL_2,
 					0x02, 0x02);
+#endif
 			snd_soc_update_bits(codec, micb_int_reg, 0x80, 0x80);
 		} else if (strnstr(w->name, internal2_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x10, 0x10);
 			snd_soc_update_bits(codec, w->reg, 0x60, 0x00);
+#if defined (CONFIG_KERNEL_CUSTOM_P3590) || defined(CONFIG_KERNEL_CUSTOM_P3588)
+			snd_soc_update_bits(codec,
+				MSM8X16_WCD_A_ANALOG_TX_1_2_ATEST_CTL_2,
+				0x03, 0x03);
+			snd_soc_update_bits(codec,
+				MSM8X16_WCD_A_ANALOG_MICB_1_INT_RBIAS,
+				0x80, 0x80);
+#endif
 		} else if (strnstr(w->name, internal3_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x2, 0x2);
 		/*
@@ -3785,9 +3802,18 @@ static int msm8x16_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 		} else if (!strnstr(w->name, external2_text, strlen(w->name)) &&
 					strnstr(w->name, external_text,
 						strlen(w->name))) {
+#if defined (CONFIG_KERNEL_CUSTOM_P3590) || defined(CONFIG_KERNEL_CUSTOM_P3588)
+			snd_soc_update_bits(codec,
+					MSM8X16_WCD_A_ANALOG_TX_1_2_ATEST_CTL_2,
+					0x03, 0x03);
+			snd_soc_update_bits(codec,
+					MSM8X16_WCD_A_ANALOG_MICB_1_INT_RBIAS,
+					0x80, 0x80);
+#else
 			snd_soc_update_bits(codec,
 					MSM8X16_WCD_A_ANALOG_TX_1_2_ATEST_CTL_2,
 					0x02, 0x02);
+#endif
 		}
 		if (!strnstr(w->name, external_text, strlen(w->name)))
 			snd_soc_update_bits(codec,
@@ -5131,17 +5157,30 @@ static int msm8x16_wcd_codec_enable_spk_ext_pa(struct snd_soc_dapm_widget *w,
 	struct snd_soc_codec *codec = w->codec;
 	struct msm8x16_wcd_priv *msm8x16_wcd = snd_soc_codec_get_drvdata(codec);
 
+#if defined(CONFIG_KERNEL_CUSTOM_P3588) //mike_zhu add  20170111 for spk pop	
+	struct msm8916_asoc_mach_data *pdata = NULL;
+	pdata = snd_soc_card_get_drvdata(codec->component.card);
+#endif
 	dev_dbg(codec->dev, "%s: %s event = %d\n", __func__, w->name, event);
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		dev_dbg(w->codec->dev,
 			"%s: enable external speaker PA\n", __func__);
-		if (msm8x16_wcd->codec_spk_ext_pa_cb)
-			msm8x16_wcd->codec_spk_ext_pa_cb(codec, 1);
+#if defined(CONFIG_KERNEL_CUSTOM_P3588) //mike_zhu add  20170111 for spk pop	
+		pr_debug("At %d In (%s), will run msm8x16_wcd_codec_enable_spk_ext_pa,true\n",__LINE__, __FUNCTION__);
+		schedule_delayed_work(&pdata->speaker_pa_enable_work, msecs_to_jiffies(150));//50
+#else
+  		if (msm8x16_wcd->codec_spk_ext_pa_cb)
+			msm8x16_wcd->codec_spk_ext_pa_cb(codec, 1);      
+#endif
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		dev_dbg(w->codec->dev,
 			"%s: enable external speaker PA\n", __func__);
+#if defined(CONFIG_KERNEL_CUSTOM_P3588) //mike_zhu add  20170111 for spk pop	
+		cancel_delayed_work_sync(&pdata->speaker_pa_enable_work);
+		pdata->spk_is_on = 0;
+#endif
 		if (msm8x16_wcd->codec_spk_ext_pa_cb)
 			msm8x16_wcd->codec_spk_ext_pa_cb(codec, 0);
 		break;
@@ -5940,19 +5979,35 @@ static void msm8x16_wcd_configure_cap(struct snd_soc_codec *codec,
 		     == MICBIAS_EXT_BYP_CAP) ||
 		    (pdata->micbias2_cap_mode
 		     == MICBIAS_EXT_BYP_CAP))
+#if defined(CONFIG_KERNEL_CUSTOM_P3588)//TDD noise
+			snd_soc_update_bits(codec,
+				MSM8X16_WCD_A_ANALOG_MICB_1_EN,
+				0x40, 0x40);
+#else
 			snd_soc_update_bits(codec,
 				MSM8X16_WCD_A_ANALOG_MICB_1_EN,
 				0x40, (MICBIAS_EXT_BYP_CAP << 6));
+#endif
 		else
 			snd_soc_update_bits(codec,
 				MSM8X16_WCD_A_ANALOG_MICB_1_EN,
 				0x40, (MICBIAS_NO_EXT_BYP_CAP << 6));
 	} else if (micbias2) {
+#if defined(CONFIG_KERNEL_CUSTOM_P3588) 
+		snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MICB_1_EN,
+				0x40, (1 << 6));
+#else
 		snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MICB_1_EN,
 				0x40, (pdata->micbias2_cap_mode << 6));	
+#endif
 	} else if (micbias1) {
+#if defined(CONFIG_KERNEL_CUSTOM_P3588)//TDD noise
+			snd_soc_update_bits(codec,MSM8X16_WCD_A_ANALOG_MICB_1_EN,
+				0x40, 0x40);
+#else
 		snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MICB_1_EN,
 				0x40, (pdata->micbias1_cap_mode << 6));
+#endif
 	} else {	
 		snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MICB_1_EN,
 				0x40, 0x00);
