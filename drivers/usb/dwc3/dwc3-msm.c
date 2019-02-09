@@ -52,8 +52,10 @@
 #include "debug.h"
 #include "xhci.h"
 
-#define DWC3_IDEV_CHG_MAX 1500
+#define DWC3_IDEV_CHG_MAX 1500 
+
 #define DWC3_HVDCP_CHG_MAX 1800
+
 
 /* AHB2PHY register offsets */
 #define PERIPH_SS_AHB2PHY_TOP_CFG 0x10
@@ -242,6 +244,9 @@ struct dwc3_msm {
 	atomic_t                in_p3;
 	unsigned int		lpm_to_suspend_delay;
 	bool			init;
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+	struct			hrtimer chg_hrtimer;
+#endif
 };
 
 #define USB_HSPHY_3P3_VOL_MIN		3050000 /* uV */
@@ -1784,6 +1789,10 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc, unsigned event,
 					PWR_EVNT_LPM_OUT_L1_MASK, 1);
 
 		atomic_set(&dwc->in_lpm, 0);
+		#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+		pr_err("%s():cancel HRTIMER\n", __func__);
+				hrtimer_cancel(&mdwc->chg_hrtimer);
+		#endif
 		break;
 	case DWC3_CONTROLLER_NOTIFY_OTG_EVENT:
 		dev_dbg(mdwc->dev, "DWC3_CONTROLLER_NOTIFY_OTG_EVENT received\n");
@@ -2237,6 +2246,10 @@ static void dwc3_ext_event_notify(struct dwc3_msm *mdwc)
 	} else {
 		dev_dbg(mdwc->dev, "XCVR: BSV clear\n");
 		clear_bit(B_SESS_VLD, &mdwc->inputs);
+		#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+		pr_err("%s():cancel HRTIMER\n", __func__);
+				hrtimer_cancel(&mdwc->chg_hrtimer);
+		#endif
 	}
 
 	if (mdwc->suspend) {
@@ -2513,10 +2526,15 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 		psy->type = val->intval;
-
 		switch (psy->type) {
 		case POWER_SUPPLY_TYPE_USB:
 			mdwc->chg_type = DWC3_SDP_CHARGER;
+			#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+			pr_err("%s(): start hrtimer\n", __func__);
+					hrtimer_start(&mdwc->chg_hrtimer,
+					ktime_set(1, 0),
+					HRTIMER_MODE_REL);
+			#endif
 			break;
 		case POWER_SUPPLY_TYPE_USB_DCP:
 			mdwc->chg_type = DWC3_DCP_CHARGER;
@@ -2539,7 +2557,7 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 		if (mdwc->chg_type != DWC3_INVALID_CHARGER)
 			mdwc->chg_state = USB_CHG_STATE_DETECTED;
 
-		dev_dbg(mdwc->dev, "%s: charger type: %s\n", __func__,
+		dev_err(mdwc->dev, "%s: charger type: %s\n", __func__,
 				chg_to_string(mdwc->chg_type));
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
@@ -2711,6 +2729,21 @@ static int dwc3_msm_get_clk_gdsc(struct dwc3_msm *mdwc)
 	return 0;
 }
 
+#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+static enum hrtimer_restart chg_hrtimer_func(struct hrtimer *hrtimer)
+{
+        struct power_supply *usb_psy;
+	const union power_supply_propval ret = {500,};
+	struct dwc3_msm *mdwc = container_of(hrtimer, struct dwc3_msm,chg_hrtimer);
+	usb_psy = power_supply_get_by_name("usb");
+        	pr_err("%s(): Inside timer expired.\n", __func__);
+        	pr_err("%s(): DO floating charger update.\n", __func__);
+        dwc3_msm_power_set_property_usb(usb_psy,POWER_SUPPLY_PROP_CURRENT_MAX,&ret);
+	dwc3_msm_gadget_vbus_draw(mdwc, 500);
+        	return HRTIMER_NORESTART;
+}
+#endif
+
 static int dwc3_msm_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node, *dwc3_node;
@@ -2761,6 +2794,11 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 
 	mdwc->id_state = DWC3_ID_FLOAT;
 	set_bit(ID, &mdwc->inputs);
+	
+	#if defined(CONFIG_KERNEL_CUSTOM_P3590)
+	hrtimer_init(&mdwc->chg_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
+		mdwc->chg_hrtimer.function = chg_hrtimer_func;
+	#endif
 
 	mdwc->charging_disabled = of_property_read_bool(node,
 				"qcom,charging-disabled");
@@ -3380,7 +3418,6 @@ static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned mA)
 		power_supply_type = POWER_SUPPLY_TYPE_USB_DCP;
 	else
 		power_supply_type = POWER_SUPPLY_TYPE_UNKNOWN;
-
 	power_supply_set_supply_type(&mdwc->usb_psy, power_supply_type);
 
 skip_psy_type:
@@ -3606,7 +3643,7 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 			dev_dbg(mdwc->dev, "!id\n");
 			mdwc->otg_state = OTG_STATE_A_IDLE;
 			work = 1;
-			mdwc->chg_type = DWC3_INVALID_CHARGER;
+				mdwc->chg_type = DWC3_INVALID_CHARGER;
 		} else if (test_bit(B_SESS_VLD, &mdwc->inputs)) {
 			dev_dbg(mdwc->dev, "b_sess_vld\n");
 			switch (mdwc->chg_type) {
